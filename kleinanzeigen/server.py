@@ -14,7 +14,7 @@ from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from kleinanzeigen import api, categories, matching, summaries
+from kleinanzeigen import api, categories, matching, seller, summaries
 
 HOST = "127.0.0.1"
 # geizhals-mcp serves on 8000 and willhaben-mcp on 8010, so all three can run
@@ -45,6 +45,13 @@ attribute value of "PC-Zubehör & Software", not a category.
 rows is at most 30; page on with the next_offset a result returns, has_more says \
 whether anything is left. total is capped at 10000 by Kleinanzeigen.
 
+Your account (set KLEINANZEIGEN_ACCESS_TOKEN and KLEINANZEIGEN_USER_EMAIL, or run \
+python -m kleinanzeigen.login). Reads: get_my_listings, get_messages. \
+Writes do nothing unless confirm is true: create_listing, update_listing, \
+pause_listing, activate_listing, upload_images, send_message. delete_listing \
+is permanent and also needs confirm. Do not bypass a login page or a CAPTCHA; \
+this server never does.
+
 Fields without a value are left out of results. Every hit and ad has a url: \
 whenever you name an ad to the user, give its link.
 """
@@ -68,11 +75,14 @@ def _prune(value):
     return value
 
 
-# Every tool only reads, so clients can run them without asking each time. All
-# but list_categories, which answers from the shipped tree, go out to
-# Kleinanzeigen.
+# Discovery tools only read. Seller writes are marked separately and, on top of
+# that hint, refuse to call the mutating endpoint unless confirm is true.
 ONLINE = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
 LOCAL = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
+WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True)
+UPDATE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True)
+DELETE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True)
+STATE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True)
 
 
 def _slim_schema(node):
@@ -567,6 +577,17 @@ async def list_categories(query: Optional[str] = None, limit: int = 40) -> dict:
     rows = [{"id": node.get("id"), "path": path}
             for node, path in flat if not q or q in matching.norm(path)]
     return {"count": len(rows), "categories": rows[:limit]}
+
+
+_tool(api.tool_errors("listings")(seller.get_my_listings))
+_tool(annotations=WRITE)(api.tool_errors("listing")(seller.create_listing))
+_tool(annotations=UPDATE)(api.tool_errors("listing")(seller.update_listing))
+_tool(annotations=STATE)(api.tool_errors("listing")(seller.pause_listing))
+_tool(annotations=STATE)(api.tool_errors("listing")(seller.activate_listing))
+_tool(annotations=DELETE)(api.tool_errors("listing")(seller.delete_listing))
+_tool(annotations=WRITE)(api.tool_errors("picture")(seller.upload_images))
+_tool(api.tool_errors("messages")(seller.get_messages))
+_tool(annotations=WRITE)(api.tool_errors("message")(seller.send_message))
 
 
 def main(argv: Optional[list[str]] = None) -> None:

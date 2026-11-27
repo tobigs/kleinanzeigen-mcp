@@ -3,10 +3,14 @@
 <p align="center"><sub>Aus derselben Reihe: <a href="https://github.com/Samxel/geizhals-mcp">geizhals-mcp</a> · <a href="https://github.com/Samxel/willhaben-mcp">willhaben-mcp</a> · <a href="https://github.com/Samxel/rabatt-mcp">rabatt-mcp</a></sub></p>
 
 Ein MCP-Server, mit dem eine KI Anzeigen auf
-[Kleinanzeigen](https://www.kleinanzeigen.de) durchsuchen und Details zu
-Anzeigen und Verkäufern abrufen kann. Er nutzt die API der
-Kleinanzeigen-Android-App (`api.kleinanzeigen.de` / `gateway.kleinanzeigen.de`)
-und gibt der KI die wichtigen Felder zurück.
+[Kleinanzeigen](https://www.kleinanzeigen.de) durchsuchen, Details zu Anzeigen
+und Verkäufern abrufen und die Anzeigen sowie Nachrichten des angemeldeten
+Kontos verwalten kann. Er nutzt die API der Kleinanzeigen-Android-App
+(`api.kleinanzeigen.de` / `gateway.kleinanzeigen.de`) und gibt der KI die
+wichtigen Felder zurück.
+
+Das hier ist der Fork von tobigs. Was die Konto-Tools können und wo sie
+aufhören, steht in [`docs/seller-capabilities.md`](docs/seller-capabilities.md).
 
 <p align="center">
   <a href="https://www.kleinanzeigen.de/"><img alt="Listings" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FSamxel%2Fkleinanzeigen-mcp%2Fcoverage%2Fcoverage.json&query=%24.listings&label=Listings&color=green&suffix=%20live&cacheSeconds=3600"></a>
@@ -46,13 +50,13 @@ Client startet den Server, wenn er ihn braucht.
 aktuelle Version direkt von GitHub:
 
 ```bash
-uvx --from git+https://github.com/Samxel/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
+uvx --from git+https://github.com/tobigs/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
 ```
 
 **Aus einem Klon.** Braucht Python 3.10+.
 
 ```bash
-git clone https://github.com/Samxel/kleinanzeigen-mcp
+git clone https://github.com/tobigs/kleinanzeigen-mcp
 cd kleinanzeigen-mcp
 pip install -r requirements.txt
 python main.py --stdio
@@ -68,7 +72,7 @@ Liste seiner Abhängigkeiten selbst mit.
 Ein Befehl, keine Konfigurationsdatei:
 
 ```bash
-claude mcp add kleinanzeigen -- uvx --from git+https://github.com/Samxel/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
+claude mcp add kleinanzeigen -- uvx --from git+https://github.com/tobigs/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
 ```
 
 Aus einem Klon zeigst du stattdessen auf `main.py`:
@@ -91,7 +95,7 @@ remove kleinanzeigen` entfernt ihn wieder.
   "mcpServers": {
     "kleinanzeigen": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/Samxel/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
+      "args": ["--from", "git+https://github.com/tobigs/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
     }
   }
 }
@@ -110,10 +114,13 @@ HTTPS-URL unter **Settings > Connectors > Add custom connector** ein. Dann kann
 aber jeder, der die URL kennt, den Server nutzen, also stell eine
 Authentifizierung davor.
 
-Alle Tools sind als rein lesend markiert. Clients, die das beachten, fragen
-deshalb nicht vor jedem Aufruf nach. In Claude Desktop kannst du außerdem unter
-**Settings > Connectors > kleinanzeigen** das Dropdown rechts bei den Tools auf
-**Always allow** stellen.
+Suche und Nachschlagen sind als rein lesend markiert. Clients, die das
+beachten, fragen deshalb nicht vor jedem dieser Aufrufe nach. Konto-Tools, die
+eine Anzeige ändern oder eine Nachricht senden, sind nicht rein lesend. Sie
+tun außerdem nichts, solange der Aufruf nicht `confirm=true` setzt. In Claude
+Desktop kannst du unter **Settings > Connectors > kleinanzeigen** das Dropdown
+der lesenden Tools auf **Always allow** stellen und die Konto-Tools auf
+Nachfragen lassen.
 
 ### Cursor, Codex, VS Code und andere Clients mit JSON-Konfiguration
 
@@ -124,7 +131,7 @@ Derselbe Eintrag wie bei Claude Desktop, in der MCP-Konfiguration des Clients:
   "mcpServers": {
     "kleinanzeigen": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/Samxel/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
+      "args": ["--from", "git+https://github.com/tobigs/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
     }
   }
 }
@@ -261,6 +268,30 @@ endet recht weit oben: Feinere Einteilungen wie „Grafikkarten“ sind
 Merkmalfilter.
 
 </details>
+
+## Dein Konto
+
+Einmal im eigenen Browser anmelden. Der Server tippt kein Passwort und löst
+kein CAPTCHA:
+
+```bash
+python -m kleinanzeigen.login
+```
+
+Das Token liegt in `~/.kleinanzeigen-mcp/token.json` (Modus 0600). Ohne Browser
+setzen `KLEINANZEIGEN_ACCESS_TOKEN`, `KLEINANZEIGEN_USER_EMAIL` und
+`KLEINANZEIGEN_USER_ID`. Dieselben Variablen gehen der Datei vor.
+
+Die Konto-Tools gelten nur für dieses Konto. `confirm` ist standardmäßig
+false: das Tool liefert eine Vorschau und ruft den schreibenden Endpunkt nicht
+auf. `confirm=true` veröffentlicht, ändert, pausiert, aktiviert, löscht, lädt
+hoch oder sendet. `upload_images` braucht kein Benutzer-Token.
+`KA_UPLOAD_ROOTS` begrenzt die Verzeichnisse, aus denen gelesen werden darf.
+
+Die Werkzeuge sind `get_my_listings`, `create_listing`, `update_listing`,
+`pause_listing`, `activate_listing`, `delete_listing`, `upload_images`,
+`get_messages` und `send_message`. Grenzen und die gemessenen Statuscodes
+stehen in [`docs/seller-capabilities.md`](docs/seller-capabilities.md).
 
 ## Haftungsausschluss
 

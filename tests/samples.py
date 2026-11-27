@@ -76,6 +76,48 @@ def enum_filter(name, label, *values, multi=True):
             "supported-value": [{"value": value, "localized-label": value_label} for value, value_label in values]}
 
 
+def posting_metadata(*, attributes=(), price=True, dependencies=()):
+    """A posting schema shaped like ``GET /api/ads/metadata/{id}.json``."""
+    def field(write, type_="STRING", values=None):
+        node = {"write": write, "type": type_}
+        if values is not None:
+            node["supported-value"] = [{"value": value, "localized-label": label} for value, label in values]
+        return node
+
+    attrs = [{
+        "name": name, "localized-label": name.split(".")[-1], "type": "ENUM", "write": write,
+        "supported-value": [{"value": value, "localized-label": label} for value, label in values],
+    } for name, write, values in attributes]
+    ad = {
+        "title": field("required"),
+        "description": field("required"),
+        "email": field("required"),
+        "category": {"write": "required"},
+        "ad-type": field("optional", "ENUM", [("OFFERED", "Angebot"), ("WANTED", "Gesuch")]),
+        "poster-type": field("optional", "ENUM", [("PRIVATE", "Privat"), ("COMMERCIAL", "Gewerblich")]),
+        "locations": {"location": [{"write": "required", "type": "LONG"}]},
+        "attributes": {"attribute": attrs},
+    }
+    if price:
+        ad["price"] = {
+            "write": "required",
+            "amount": field("optional", "DECIMAL"),
+            "price-type": field("required", "ENUM", [
+                ("FREE", "Zu verschenken"), ("PLEASE_CONTACT", "VB"), ("SPECIFIED_AMOUNT", "Festpreis")]),
+        }
+    if dependencies:
+        ad["dependent-attributes"] = {"dependent-attribute": list(dependencies)}
+    return wrapped("ad", ad)
+
+
+def picture(url):
+    ns = "{http://www.ebayclassifiedsgroup.com/schema/picture/v1}"
+    return {f"{ns}picture": {"value": {"link": [
+        {"rel": "large", "href": url + "?rule=small"},
+        {"rel": "XXL", "href": url},
+    ]}}}
+
+
 def profile(seller_id="22075716"):
     return {"id": seller_id, "contactName": "Max", "posterType": "PRIVATE", "userSince": "2015-03-01",
             "replyIndicators": {"replySpeed": "within an hour"},
