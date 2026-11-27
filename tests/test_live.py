@@ -50,3 +50,16 @@ async def test_seller_reputation(call):
 async def test_lookups(call):
     assert await call("search_locations", query="berl")
     assert await call("get_category_filters", category=225)
+
+
+async def test_account_routes_require_a_user_and_posting_schema_is_public():
+    """The seller routes exist. Without a user token they answer 401, and the
+    posting schema for a category is public. No ad is created."""
+    from kleinanzeigen import seller
+    with pytest.raises(httpx.HTTPStatusError) as failure:
+        await api.get("users/1/ads.json", params={"page": "0", "size": "1"})
+    assert failure.value.response.status_code == 401
+    assert "mandatory" in failure.value.response.text.lower() or "authorization" in failure.value.response.text.lower()
+    schema = seller.parse_schema(await api.get("ads/metadata/225.json"))
+    assert schema["price_required"] is True
+    assert any(item["write"] == "required" for item in schema["attributes"])

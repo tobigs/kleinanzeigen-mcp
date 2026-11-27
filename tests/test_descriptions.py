@@ -27,8 +27,26 @@ async def test_descriptions_are_dedented_and_the_listing_stays_small():
         assert tool.description == inspect.cleandoc(tool.description), tool.name
         assert not tool.description.startswith(" ")
     listing = json.dumps([tool.model_dump(exclude_none=True) for tool in tools], ensure_ascii=False)
-    # ~8.3k before titles and null branches left the schemas
-    assert len(listing) < 7600
+    # Discovery tools sit just under 8k. The seller tools add their own schemas;
+    # the cap still rejects a listing that has grown by another large tool.
+    assert len(listing) < 15000
+
+
+def _schema_titles(node) -> bool:
+    """True when a schema node carries pydantic's ``title`` metadata. A property
+    that is itself named title is the parameter, not that metadata."""
+    if isinstance(node, dict):
+        if "title" in node:
+            return True
+        for key, child in node.items():
+            if key == "properties" and isinstance(child, dict):
+                if any(_schema_titles(prop) for prop in child.values()):
+                    return True
+            elif _schema_titles(child):
+                return True
+    elif isinstance(node, list):
+        return any(_schema_titles(item) for item in node)
+    return False
 
 
 async def test_schemas_carry_no_titles_or_null_branches():
@@ -36,4 +54,4 @@ async def test_schemas_carry_no_titles_or_null_branches():
         tools = (await client.list_tools()).tools
     for tool in tools:
         text = json.dumps(tool.input_schema)
-        assert '"title"' not in text and '"null"' not in text, tool.name
+        assert not _schema_titles(tool.input_schema) and '"null"' not in text, tool.name

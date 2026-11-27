@@ -3,9 +3,13 @@
 <p align="center"><sub>From the same series: <a href="https://github.com/Samxel/geizhals-mcp">geizhals-mcp</a> · <a href="https://github.com/Samxel/willhaben-mcp">willhaben-mcp</a> · <a href="https://github.com/Samxel/rabatt-mcp">rabatt-mcp</a></sub></p>
 
 An MCP server that lets an AI search [Kleinanzeigen](https://www.kleinanzeigen.de)
-listings and pull ad and seller details. It wraps the Kleinanzeigen Android
-app's API (`api.kleinanzeigen.de` / `gateway.kleinanzeigen.de`) and returns the
-important fields to the AI.
+listings and pull ad and seller details, and manage the ads and messages of
+the account you sign in. It wraps the Kleinanzeigen Android app's API
+(`api.kleinanzeigen.de` / `gateway.kleinanzeigen.de`) and returns the important
+fields to the AI.
+
+This repository is tobigs' fork. What the account tools can and cannot do is
+written down in [`docs/seller-capabilities.md`](docs/seller-capabilities.md).
 
 <p align="center">
   <a href="https://www.kleinanzeigen.de/"><img alt="Listings" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FSamxel%2Fkleinanzeigen-mcp%2Fcoverage%2Fcoverage.json&query=%24.listings&label=Listings&color=green&suffix=%20live&cacheSeconds=3600"></a>
@@ -45,13 +49,13 @@ client starts the server when it needs it.
 current version straight from GitHub:
 
 ```bash
-uvx --from git+https://github.com/Samxel/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
+uvx --from git+https://github.com/tobigs/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
 ```
 
 **From a clone.** Requires Python 3.10+.
 
 ```bash
-git clone https://github.com/Samxel/kleinanzeigen-mcp
+git clone https://github.com/tobigs/kleinanzeigen-mcp
 cd kleinanzeigen-mcp
 pip install -r requirements.txt
 python main.py --stdio
@@ -67,7 +71,7 @@ declares its own dependencies.
 One command, no config file:
 
 ```bash
-claude mcp add kleinanzeigen -- uvx --from git+https://github.com/Samxel/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
+claude mcp add kleinanzeigen -- uvx --from git+https://github.com/tobigs/kleinanzeigen-mcp kleinanzeigen-mcp --stdio
 ```
 
 From a clone, point it at `main.py` instead:
@@ -90,7 +94,7 @@ Open **Settings > Developer > Edit Config**, add the `kleinanzeigen` entry to
   "mcpServers": {
     "kleinanzeigen": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/Samxel/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
+      "args": ["--from", "git+https://github.com/tobigs/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
     }
   }
 }
@@ -108,9 +112,12 @@ hostname, and add that HTTPS URL under **Settings > Connectors > Add custom
 connector**. Anyone who finds the URL can use the server too, though, so put
 authentication in front of it.
 
-Every tool is marked read-only, so clients that honour that hint won't ask
-before each call. In Claude Desktop you can also open **Settings > Connectors >
-kleinanzeigen** and set the tools' dropdown on the right to **Always allow**.
+Search and lookup tools are marked read-only, so clients that honour that hint
+won't ask before each of those calls. Account tools that change an ad or send
+a message are not read-only. They also do nothing unless the call passes
+`confirm=true`. In Claude Desktop you can open **Settings > Connectors >
+kleinanzeigen** and set the tools' dropdown on the right to **Always allow**
+for the read-only tools; leave the account tools on ask.
 
 ### Cursor, Codex, VS Code and other JSON-config clients
 
@@ -121,7 +128,7 @@ The same entry as for Claude Desktop, in the client's MCP config:
   "mcpServers": {
     "kleinanzeigen": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/Samxel/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
+      "args": ["--from", "git+https://github.com/tobigs/kleinanzeigen-mcp", "kleinanzeigen-mcp", "--stdio"]
     }
   }
 }
@@ -247,6 +254,41 @@ most 100 per call). The tree (159 categories) ships with the server in
 high up: finer cuts like "Grafikkarten" are attribute filters.
 
 </details>
+
+## Your account
+
+Sign in once, in your own browser. The server does not type a password and does
+not solve a CAPTCHA:
+
+```bash
+python -m kleinanzeigen.login
+```
+
+That stores a token in `~/.kleinanzeigen-mcp/token.json` (mode 0600). A shell
+without a browser can instead set `KLEINANZEIGEN_ACCESS_TOKEN`,
+`KLEINANZEIGEN_USER_EMAIL` and `KLEINANZEIGEN_USER_ID`. The same variables
+override the file.
+
+Account tools act only on that account. `confirm` defaults to false: the tool
+returns a preview and does not call the mutating endpoint. Pass `confirm=true`
+to publish, change, pause, activate, delete, upload or send.
+`upload_images` needs no user token; it uses the app credential the search
+already uses. `KA_UPLOAD_ROOTS` (a `pathsep`-separated list) limits which
+directories it may read.
+
+| Tool | What it does |
+|---|---|
+| `get_my_listings` | Your ads, paused ones included |
+| `create_listing` | Publish one ad. Required fields come from that category's posting schema |
+| `update_listing` | Send only the fields you pass. Read the ad afterwards |
+| `pause_listing` / `activate_listing` | Take an ad offline, or put it back |
+| `delete_listing` | Permanent delete |
+| `upload_images` | Upload JPEG, PNG, GIF or WebP and return hosted URLs |
+| `get_messages` | Inbox, or one thread. Reading does not mark the thread loaded |
+| `send_message` | Reply in a thread, or write the first message on an ad |
+
+The limits, the live status codes, and the things this server will not do are
+in [`docs/seller-capabilities.md`](docs/seller-capabilities.md).
 
 ## Disclaimer
 

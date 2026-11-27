@@ -149,6 +149,38 @@ is what `search_kleinanzeigen`'s enums and `get_category_filters` are built
 from -- query it again for a category rather than guessing new attribute
 keys/values.
 
+## Account routes
+
+Probed on 2026-11-27 with this repo's httpx client and the app Basic credential,
+and no user token. A 401 with "Authentication is mandatory for /users resource"
+means the route exists and is account-scoped. A 404 would have meant it does
+not. No ad was created and no message was sent. The full matrix is
+[`docs/seller-capabilities.md`](docs/seller-capabilities.md).
+
+The user header the API host asks for (`X-ECG-Authenticate-User`) is
+`X-ECG-Authorization-User`. The shape it parsed in the probe is
+`email=<email>,access=<token>`. `x-ebayk-userid-token` on its own left the
+error at "authentication is mandatory".
+
+| Method | Path | Probe |
+|---|---|---|
+| `GET` | `api/users/{userId}/ads.json` | 401 |
+| `GET` | `api/users/{userId}/ads/{adId}.json` | 401 |
+| `POST` | `api/users/{userId}/ads.json` | 401 |
+| `PUT` | `api/users/{userId}/ads/{adId}.json` | 401 |
+| `PUT` | `api/users/{userId}/ads/paused/{adId}.json` | 401 |
+| `PUT` | `api/users/{userId}/ads/active/{adId}.json` | 401 |
+| `DELETE` | `api/users/{userId}/ads/{adId}` | 401 |
+| `GET` | `api/users/{email}/profile.json` | 401; a token that does not match the email says the user is unknown |
+| `GET` | `api/ads/metadata/{categoryId}.json` | 200, public posting schema (`write=required` per field and attribute) |
+| `POST` | `api/pictures.json` | 201 for a JPEG with the app credential only. An empty body is 500, which still shows the route exists |
+| `GET`/`POST` | `api/users/{userId}/conversations` | 401 |
+| `GET`/`PUT`/`POST` | `gateway.../messagebox/api/users/{userId}/conversations[/{id}]` | 401 with an empty body, for a missing token and for a wrong one |
+
+`GET https://login.kleinanzeigen.de/.well-known/openid-configuration` is 200.
+`GET /authorize` with the app's public client id redirects (302) to the real
+login page. Password login is not implemented.
+
 ## Response shape
 
 Every scalar field on `api.kleinanzeigen.de` comes wrapped as `{"value": ...}`
